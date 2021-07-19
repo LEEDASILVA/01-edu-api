@@ -1,5 +1,5 @@
 {
-  "name": "read-only-access-api",
+  "name": "@01-edu/api",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,12 +8,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LEEDASILVA/read-only-access-api.git"
+    "url": "git+https://github.com/LEEDASILVA/01-edu-api.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/LEEDASILVA/read-only-access-api/issues"
+    "url": "https://github.com/LEEDASILVA/01-edu-api/issues"
   },
-  "homepage": "https://github.com/LEEDASILVA/read-only-access-api#readme"
+  "homepage": "https://github.com/LEEDASILVA/01-edu-api#readme"
 }
