@@ -1,6 +1,7 @@
 {
   "name": "@01-edu/api",
   "version": "1.0.0",
+  "type": "module",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -15,5 +16,9 @@
   "bugs": {
     "url": "https://github.com/LEEDASILVA/01-edu-api/issues"
   },
-  "homepage": "https://github.com/LEEDASILVA/01-edu-api#readme"
+  "homepage": "https://github.com/LEEDASILVA/01-edu-api#readme",
+  "dependencies": {
+    "got": "^11.8.2",
+    "node-fetch": "^2.6.1"
+  }
 }
