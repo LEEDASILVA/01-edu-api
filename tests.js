@@ -1,12 +1,5 @@
 import { deepStrictEqual as eq, rejects } from 'assert'
-import {
-  getToken,
-  decode,
-  singOut,
-  refreshToken,
-  refreshLoop,
-  createClient,
-} from './index.js'
+import { getToken, decode, singOut, cache, createClient } from './index.js'
 
 export const t = {}
 const domain = 'dev.01-edu.org'
@@ -58,7 +51,7 @@ t['getToken: test invalid access token (app token)'] = () =>
     name: 'HTTPError',
   })
 
-// // TODO : create access token using gitea
+// TODO : create access token using gitea
 t['getToken: test valid access token (app token)'] = async () => {
   const CLAIMS = 'https://hasura.io/jwt/claims'
   const { payload } = await getToken({ domain, access_token })
@@ -78,14 +71,44 @@ t['getToken: test valid access token (app token)'] = async () => {
 
 t['singOut: expire the token (if app needs to expire the token)'] =
   async () => {
-    const {token, payload} = await getToken({ domain, access_token })
-    await singOut(domain)
+    await getToken({ domain, access_token })
+    return eq(await singOut(domain), { message: 'ok' })
   }
 
-// const client = await createClient({ domain, access_token })
+t['singOut: expire token that does not exist'] = () => {
+  cache.clear()
+  return rejects(() => singOut(domain), {
+    name: 'HTTPError',
+    message: 'Response code 401 (Unauthorized)',
+  })
+}
 
-// client.run(domain, 'query {token{id}}').then(console.log)
+t['createClient: create new client with bad token'] = () => {
+  return rejects(
+    () => createClient({ domain, access_token: bad_access_token }),
+    {
+      message: 'Response code 401 (Unauthorized)',
+      name: 'HTTPError',
+    }
+  )
+}
 
-// t['client: init client'] = async () => {
-//   eq(createClient({ domain, access_token }), {})
-// }
+t['createClient: create new client'] = async () => {
+  const result = await createClient({
+    domain,
+    access_token,
+  })
+
+  return eq(result.cache, cache)
+}
+
+t['client.run: run queries'] = async () => {
+  cache.clear()
+  const client = await createClient({
+    domain,
+    access_token,
+  })
+  return eq(await client.run('query {user{id, login}}'), {
+    data: { user: { id: 1, login: '01-edu' } },
+  })
+}

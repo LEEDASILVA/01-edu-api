@@ -1,47 +1,11 @@
-// read only access
-
-/*
-clement feedback
-
-// [17:11] clement: I think we want a cache with the token
-// [17:12] clement: the idea is to generate a JWT from the gitea token first
-// [17:12] clement: save it in a cache
-// [17:12] clement: then next calls, check if we have it in a cache, if so, check if it's expired
-// [17:13] clement: if so, refresh it
-
-organization of the api
-- access token:
-  - create a token on gitea from the user / make user generate this token by him self
-
-- get jwt from authentication service:
-  - using the access token from gitea we can now generate the jwt
-  - using the route https://((DOMAIN))/auth/?token=<access_token> :> = jwt
-  - then save it on cache
-  - next call we can refresh it by accessing the route https://((DOMAIN))/auth/refrehs?token=<jwt>
-    - if the token is in cache, we check if it is expired
-    - if the token is expired we should refresh it using the route
-
-- client to do queries
-
-clement example
-
-```
-import { createClient } from '01-edu'
-const client = createClient({ domain: 'dev.01-edu.org', token: 'qwertyuiopasdfghjkl1234567890' })
-const users = await client.run(`query {
-  user(limit: 10) {
-    login
-  }
-}`)
-```
-*/
 import got from 'got'
-let localStorage = new Map()
 
+const localStorage = new Map()
 const cache = {
-  set: (k, v) => (v ? (localStorage[k] = v || '') : localStorage.removeItem(k)),
-  del: (k) => localStorage.removeItem(k),
-  get: (k) => localStorage[k],
+  set: (k, v) => (v ? localStorage.set(k, v || '') : localStorage.delete(k)),
+  del: (k) => localStorage.delete(k),
+  get: (k) => localStorage.get(k),
+  clear: () => localStorage.clear(),
 }
 
 const base64urlUnescape = (str) =>
@@ -49,14 +13,23 @@ const base64urlUnescape = (str) =>
     .replace(/-/g, '+')
     .replace(/_/g, '/')
 
+// singOut, expires the token if any
+// this allows application securely expire the JWT token
+const singOut = async (domain) => {
+  const token = cache.get('hasura-jwt-token')
+  cache.clear()
+  return await fetch(domain, 'expire', token)
+}
+
 const decode = (token) =>
   JSON.parse(Buffer.from(base64urlUnescape(token.split('.')[1]), 'base64'))
 
 const fetch = async (domain, type, token) => {
   try {
-    const res = await got(`https://${domain}/api/auth/${type}?token=${token}`, {
+    const res = await got(`https://${domain}/api/auth/${type}`, {
       responseType: 'json',
       https: { rejectUnauthorized: false },
+      headers: { 'x-jwt-token': token },
     })
     return res.body
   } catch (error) {
@@ -64,17 +37,32 @@ const fetch = async (domain, type, token) => {
   }
 }
 
+// getToken, allows users to generate a new token
 const getToken = async ({ domain, access_token }) => {
-  const token = await fetch(domain, 'token', access_token)
-  const payload = decode(token)
-  cache.set('hasura-jwt-token', token)
-  return { token, payload }
+  try {
+    const res = await got(
+      `https://${domain}/api/auth/token?token=${access_token}`,
+      {
+        responseType: 'json',
+        https: { rejectUnauthorized: false },
+      }
+    )
+    const token = res.body
+    const payload = decode(token)
+    cache.set('hasura-jwt-token', token)
+    return { token, payload }
+  } catch (error) {
+    throw error
+  }
 }
 
+// refreshToken, checks if the token needs to be refreshed, if the
+// token is valid it will return the same token. Otherwise it will
+// return a new valid token
 const refreshToken = async (token, payload) => {
   const diff = payload.exp * 1000 - Date.now()
   // check if the token exists in the cache
-  // if so check if the token is still valid
+  // if so, check if the token is still valid
   if (cath.get('hasura-jwt-token') && diff > 0) {
     return { token, payload }
   }
@@ -86,33 +74,32 @@ const refreshToken = async (token, payload) => {
 }
 
 let _timeout
-// this will create a refresh token loop
-const refreshLoop = (token, payload) => {
+// refreshLoop, will create a loop where it will continue refreshing
+// the token depending on the expiration date
+const refreshLoop = ({ token, payload }) => {
   console.log('token expires in', payload.exp * 1000 - Date.now())
+  clearTimeout(_timeout)
   _timeout = setTimeout(async () => {
-    refreshToken(token, payload)
+    const tp = await refreshToken(token, payload)
+    refreshLoop(tp)
   }, payload.exp * 1000 - Date.now())
 }
 
-// this will expire the token if the user wants to shutdown the app
-const singOut = async (domain) => {
-  const token = cache.get('hasura-jwt-token')
-  localStorage.clear()
-  console.log(token)
-  const res = token && (await fetch(domain, '/expire', token))
-  console.log('.....', res)
-}
-
-// generates the jwt from the access token given by the admin user
+// createClient, will init the client
+// generate a new token and initialize the refreshLoop
+// application that init the client don't need to refresh the token
+// every time it expires, it refreshes the token automatically
 const createClient = async ({ domain, access_token }) => {
-  getToken({ domain, access_token }).then(({ token, payload }) => {
-    // start the event loop to do the refresh
-    // or give the option to the app user to call this function?
-    refreshLoop(token, payload)
-  })
-  // this will make part of the client, it would be to run using something like:
-  // client.run({.....}))
+  try {
+    const obj = await getToken({ domain, access_token })
+    refreshLoop(obj)
+  } catch (err) {
+    throw err
+  }
+
   return {
+    // run, will make part of the client, it should be used to run queries that
+    // the application needs to run. Should be used like this: client.run({.....}))
     run: async (query, variables) => {
       const { body } = await got(
         `https://${domain}/api/graphql-engine/v1/graphql`,
@@ -120,7 +107,7 @@ const createClient = async ({ domain, access_token }) => {
           https: { rejectUnauthorized: false },
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${localStorage['hasura-jwt-token']}`,
+            Authorization: `Bearer ${cache.get('hasura-jwt-token')}`,
           },
           body: JSON.stringify({ query, variables }),
         }
@@ -131,4 +118,4 @@ const createClient = async ({ domain, access_token }) => {
   }
 }
 
-export { createClient, singOut, refreshToken, refreshLoop, getToken, decode }
+export { createClient, singOut, getToken, decode, cache }
