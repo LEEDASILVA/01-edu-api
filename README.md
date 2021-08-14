@@ -10,7 +10,50 @@
 $ npm i @01-edu/api
 ```
 
-### Usage
+### Instructions
+
+This package allows users to create a read only access to the schools database (keep in mind that this access will only be provided for admins).
+
+<details>
+<summary><b>How to get an access token from gitea?</b></summary>
+
+To get an access token from gitea, you must go to **user/settings/application** then **Generate New Token** (https://DOMAIN/user/settings/applications).
+
+1. Go user settings on gitea.
+
+![instructions](./img/setting.png 'Instructions')
+
+2. Then in application you can create the token by inserting a name for this token then it will be generated.
+
+![instructions](./img/access_token.png 'Instructions')
+
+Or you can use `curl` and send a request to gitea:
+
+```sh
+$ curl -X 'POST' 'https://someone:123456@git.dev.01-edu.org/api/v1/users/someone/tokens' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"name": "access_token"}'
+```
+
+output
+
+```sh
+{"id":4,"name":"access_token","sha1":"592cfb612d027eeb45359d837a93b4e22b5e1","token_last_eight":"e22bb5e1"}
+```
+
+</details>
+
+<details>
+<summary><b>What can you query?</b></summary>
+Querying information is depended on the users role. You can see all possible tables that this role can query <a>https://public.01-edu.org/docs/db/db-authorization</a>
+</details>
+
+<details>
+<summary><b>How to query the information? Where to find examples?</b></summary>
+You can take a look into the documentation <a>https://public.01-edu.org/docs/db/graphql</a>.
+</details>
+
+---
+
+### **Usage**
 
 This package contains the following exported functions:
 
@@ -18,8 +61,6 @@ This package contains the following exported functions:
 - `singOut`
 - `getToken`
 - `decode`
-
----
 
 ### `createClient`
 
@@ -51,14 +92,12 @@ output:
 
 ```console
 {
-  data: {
-    user: [
-      { id: 1, login: '01-edu' },
-      { id: 6, login: 'Joao' }
-      { id: 7, login: 'Someone' },
-      { id: 8, login: 'Lee' },
-    ]
-  }
+  user: [
+    { id: 1, login: '01-edu' },
+    { id: 6, login: 'Joao' }
+    { id: 7, login: 'Someone' },
+    { id: 8, login: 'Lee' },
+  ]
 }
 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2IiwiaWF0IjoxN1MzY2LCJpcCI6IjE3Mi4xOC4wLjEsIDE3Mi4xOC4wLjMiLCJleHAiOjE2MjkpbXMiOnsieC1oYXN1cmEtYWxsb3dlZC1yb2xlcyI6WyJ1c2VyIiwiYWRtaW5fcmVhZF9vbmx5Il0sI1kWx0LXJvbGUiOiJhZG1pbl9yZWFkX29ubHkiLCJ4LWhhc3VyYS11c2VyLWlkIjoiNiIsIngtaGFzdXJhLXRva2VuLWlkIjoiZjgzZmM2YTItZWFhNC00NDVmLTgyNmYtYTg1NTgzZjA1NWY3In19.HObIGivW31TOqFNlzu6VY7ACuTC5x0numm6-hOKp0
 ```
@@ -94,27 +133,19 @@ output:
 
 ```js
 {
-  data: {
-    user: [
-      { id: 1, login: '01-edu' },
-      { id: 6, login: 'Joao' }
-      { id: 7, login: 'Someone' },
-      { id: 8, login: 'Lee' },
-    ]
-  }
+  user: [
+    { id: 1, login: '01-edu' },
+    { id: 6, login: 'Joao' }
+    { id: 7, login: 'Someone' },
+    { id: 8, login: 'Lee' },
+  ]
 }
 before signOut: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2IiwiaWF0IjoxN1MzY2LCJpcCI6IjE3Mi4xOC4wLjEsIDE3Mi4xOC4wLjMiLCJleHAiOjE2MjkpbXMiOnsieC1oYXN1cmEtYWxsb3dlZC1yb2xlcyI6WyJ1c2VyIiwiYWRtaW5fcmVhZF9vbmx5Il0sI1kWx0LXJvbGUiOiJhZG1pbl9yZWFkX29ubHkiLCJ4LWhhc3VyYS11c2VyLWlkIjoiNiIsIngtaGFzdXJhLXRva2VuLWlkIjoiZjgzZmM2YTItZWFhNC00NDVmLTgyNmYtYTg1NTgzZjA1NWY3In19.HObIGivW31TOqFNlzu6VY7ACuTC5x0numm6-hOKp0
 before signOut: undefined
 -----
-{
-  errors: [
-    {
-      extensions: [Object],
-      message: 'Could not verify JWT: JWSError (CompactDecodeError Invalid number of parts: Expected 3 parts; got 1)'
-    }
-  ]
-}
-
+  {
+    message: 'Could not verify JWT: JWSError (CompactDecodeError Invalid number of parts: Expected 3 parts; got 1)'
+  }
 ```
 
 ---
@@ -126,7 +157,7 @@ This allows users to generate a new token without the client being initialized.
 example:
 
 ```js
-  getToken({ domain, access_token }).then(console.log)
+getToken({ domain, access_token }).then(console.log)
 ```
 
 output:
