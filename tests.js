@@ -1,5 +1,5 @@
 import { deepStrictEqual as eq, rejects } from 'assert'
-import { getToken, decode, singOut, cache, createClient } from './index.js'
+import { getToken, decode, signOut, cache, createClient } from './index.js'
 
 export const t = {}
 const domain = 'dev.01-edu.org'
@@ -69,20 +69,6 @@ t['getToken: test valid access token (app token)'] = async () => {
   )
 }
 
-t['singOut: expire the token (if app needs to expire the token)'] =
-  async () => {
-    await getToken({ domain, access_token })
-    return eq(await singOut(domain), { message: 'ok' })
-  }
-
-t['singOut: expire token that does not exist'] = () => {
-  cache.clear()
-  return rejects(() => singOut(domain), {
-    name: 'HTTPError',
-    message: 'Response code 401 (Unauthorized)',
-  })
-}
-
 t['createClient: create new client with bad token'] = () => {
   return rejects(
     () => createClient({ domain, access_token: bad_access_token }),
@@ -108,7 +94,59 @@ t['client.run: run queries'] = async () => {
     domain,
     access_token,
   })
-  return eq(await client.run('query {user{id, login}}'), {
-    data: { user: { id: 1, login: '01-edu' } },
+  const users = (await client.run('query {user{id, login}}')).user
+  return eq(users[0], { id: 1, login: '01-edu' })
+}
+
+t['client.run: with no token (after signOut)'] = async () => {
+  cache.clear()
+  const client = await createClient({
+    domain,
+    access_token,
   })
+
+  signOut(domain)
+  return rejects(() => client.run('query {user{id, login}}'), {
+    message:
+      'Could not verify JWT: JWSError (CompactDecodeError Invalid number of parts: Expected 3 parts; got 1)',
+  })
+}
+
+t['client.run: run mutation (not allowed)'] = async () => {
+  cache.clear()
+  const client = await createClient({
+    domain,
+    access_token,
+  })
+  return rejects(
+    () =>
+      client.run(`mutation ($tokenId: uuid!) {
+    update_token(where: {id: {_eq: $tokenId}}, _set: {status: "expired"}) {
+      affected_rows
+    }
+  }`),
+    {
+      message: 'no mutations exist',
+    }
+  )
+}
+
+t['signOut: expire the token (if app needs to expire the token)'] =
+async () => {
+  await getToken({ domain, access_token })
+  return eq(await signOut(domain), { message: 'ok' })
+}
+
+t['signOut: expire token that does not exist'] = () => {
+  cache.clear()
+  return rejects(() => signOut(domain), {
+    name: 'HTTPError',
+    message: 'Response code 401 (Unauthorized)',
+  })
+}
+
+t['refreshLoop: test the refresh loop of a token'] = async () => {
+  cache.clear()
+  const client = await createClient({domain, access_token})
+  console.log(client.cache.get('hasura-jwt-token'))
 }

@@ -13,11 +13,12 @@ const base64urlUnescape = (str) =>
     .replace(/-/g, '+')
     .replace(/_/g, '/')
 
-// singOut, expires the token if any
+// signOut, expires the token if any
 // this allows application securely expire the JWT token
-const singOut = async (domain) => {
+const signOut = async (domain) => {
   const token = cache.get('hasura-jwt-token')
   cache.clear()
+  clearTimeout(_timeout)
   return await fetch(domain, 'expire', token)
 }
 
@@ -56,32 +57,32 @@ const getToken = async ({ domain, access_token }) => {
   }
 }
 
-// refreshToken, checks if the token needs to be refreshed, if the
-// token is valid it will return the same token. Otherwise it will
-// return a new valid token
-const refreshToken = async (token, payload) => {
-  const diff = payload.exp * 1000 - Date.now()
-  // check if the token exists in the cache
-  // if so, check if the token is still valid
-  if (cath.get('hasura-jwt-token') && diff > 0) {
-    return { token, payload }
-  }
-
-  const newToken = await fetch(domain, 'refresh', token)
-  const newPayload = decode(newToken)
-  cache.set('hasura-jwt-token', newToken)
-  return { newToken, newPayload }
-}
-
 let _timeout
 // refreshLoop, will create a loop where it will continue refreshing
 // the token depending on the expiration date
-const refreshLoop = ({ token, payload }) => {
-  console.log('token expires in', payload.exp * 1000 - Date.now())
+const refreshLoop = ({ token, payload, domain }) => {
+  console.log('token expires at', new Date(payload.exp * 1000).toISOString())
   clearTimeout(_timeout)
   _timeout = setTimeout(async () => {
-    const tp = await refreshToken(token, payload)
-    refreshLoop(tp)
+    const diff = payload.exp - Date.now() / 1000
+    // check if the token exists in the cache
+    // if so, check if the token is still valid
+    if (cache.get('hasura-jwt-token') && diff > 0) {
+      refreshLoop({ token, payload, domain })
+    }
+    try {
+      const newToken = await fetch(domain, 'refresh', token)
+      const newPayload = decode(newToken)
+      cache.set('hasura-jwt-token', newToken)
+      refreshLoop(
+        Object.assign(
+          { token: newToken, payload: newPayload },
+          { domain: domain }
+        )
+      )
+    } catch (error) {
+      throw error
+    }
   }, payload.exp * 1000 - Date.now())
 }
 
@@ -92,7 +93,7 @@ const refreshLoop = ({ token, payload }) => {
 const createClient = async ({ domain, access_token }) => {
   try {
     const obj = await getToken({ domain, access_token })
-    refreshLoop(obj)
+    refreshLoop(Object.assign(obj, { domain: domain }))
   } catch (err) {
     throw err
   }
@@ -112,10 +113,14 @@ const createClient = async ({ domain, access_token }) => {
           body: JSON.stringify({ query, variables }),
         }
       )
-      return JSON.parse(body)
+      const { errors, data } = JSON.parse(body)
+      if (errors) {
+        throw Error(errors[0].message)
+      }
+      return data
     },
     cache,
   }
 }
 
-export { createClient, singOut, getToken, decode, cache }
+export { createClient, signOut, getToken, decode, cache }
