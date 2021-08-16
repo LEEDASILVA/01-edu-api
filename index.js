@@ -94,19 +94,18 @@ const createClient = async ({ domain, access_token }) => {
   try {
     const obj = await getToken({ domain, access_token })
     refreshLoop(Object.assign(obj, { domain: domain }))
-  } catch (err) {
-    throw err
+  } catch (error) {
+    throw error
   }
 
   return {
     // run, will make part of the client, it should be used to run queries that
     // the application needs to run. Should be used like this: client.run({.....}))
     run: async (query, variables) => {
-      const { body } = await got(
+      const { body } = await got.post(
         `https://${domain}/api/graphql-engine/v1/graphql`,
         {
           https: { rejectUnauthorized: false },
-          method: 'POST',
           headers: {
             Authorization: `Bearer ${cache.get('hasura-jwt-token')}`,
           },
@@ -123,4 +122,12 @@ const createClient = async ({ domain, access_token }) => {
   }
 }
 
-export { createClient, signOut, getToken, decode, cache }
+const format = (data, fields) =>
+  data.reduce(
+    (acc, cr) => (acc += fields.map((v) => cr[v]).join(',') + '\n'),
+    fields.join(',') + '\n'
+  )
+
+const exportAsCsv = (data) => format(data, Object.keys(data[0]))
+
+export { exportAsCsv, createClient, signOut, getToken, decode, cache }

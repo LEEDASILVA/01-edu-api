@@ -1,11 +1,46 @@
 import { deepStrictEqual as eq, rejects } from 'assert'
-import { getToken, decode, signOut, cache, createClient } from './index.js'
+import got from 'got'
+import FormData from 'form-data'
+import {
+  exportAsCsv,
+  getToken,
+  decode,
+  signOut,
+  cache,
+  createClient,
+} from './index.js'
 
 export const t = {}
 const domain = 'dev.01-edu.org'
 const bad_access_token = '427faa391a0d73a68b69d4d3b65796fd798e9156'
-const access_token = '41e831f2d9e15d63e07a6a4e77cd6700961bf80e'
+const user = 'lee'
+const pass = 'qwertY1234'
+let access_token
 
+t['access_token: create access_token for user'] = async () => {
+  const body = new FormData()
+  body.append('name', 'access_token')
+  try {
+    const res = await got.post(
+      `https://${user}:${pass}@git.dev.01-edu.org/api/v1/users/${user}/tokens`,
+      {
+        responseType: 'json',
+        https: { rejectUnauthorized: false },
+        body,
+      }
+    )
+    access_token = res.body.sha1
+  } catch {
+    const res = await got(
+      `https://${user}:${pass}@git.dev.01-edu.org/api/v1/users/${user}/tokens`,
+      {
+        responseType: 'json',
+        https: { rejectUnauthorized: false },
+      }
+    )
+    access_token = res.body.sha1
+  }
+}
 t['decode: test the decoding of a token'] = () =>
   eq(
     decode(
@@ -51,7 +86,6 @@ t['getToken: test invalid access token (app token)'] = () =>
     name: 'HTTPError',
   })
 
-// TODO : create access token using gitea
 t['getToken: test valid access token (app token)'] = async () => {
   const CLAIMS = 'https://hasura.io/jwt/claims'
   const { payload } = await getToken({ domain, access_token })
@@ -94,7 +128,12 @@ t['client.run: run queries'] = async () => {
     domain,
     access_token,
   })
-  const users = (await client.run('query {user{id, login}}')).user
+  const users = (
+    await client.run(
+      'query($userName: String!) {user(where:{login:{_eq: $userName}}){id, login}}',
+      { userName: '01-edu' }
+    )
+  ).user
   return eq(users[0], { id: 1, login: '01-edu' })
 }
 
@@ -132,10 +171,10 @@ t['client.run: run mutation (not allowed)'] = async () => {
 }
 
 t['signOut: expire the token (if app needs to expire the token)'] =
-async () => {
-  await getToken({ domain, access_token })
-  return eq(await signOut(domain), { message: 'ok' })
-}
+  async () => {
+    await getToken({ domain, access_token })
+    return eq(await signOut(domain), { message: 'ok' })
+  }
 
 t['signOut: expire token that does not exist'] = () => {
   cache.clear()
@@ -145,8 +184,24 @@ t['signOut: expire token that does not exist'] = () => {
   })
 }
 
-t['refreshLoop: test the refresh loop of a token'] = async () => {
+t['exportAsCsv: format data to csv export (using simple query)'] = async () => {
   cache.clear()
-  const client = await createClient({domain, access_token})
-  console.log(client.cache.get('hasura-jwt-token'))
+  const client = await createClient({
+    domain,
+    access_token,
+  })
+  const users = (
+    await client.run(
+      'query($userName: String!) {user(where:{login:{_eq: $userName}}){id, login}}',
+      { userName: '01-edu' }
+    )
+  ).user
+  signOut(domain)
+  eq(exportAsCsv(users), 'id,login\n1,01-edu\n')
 }
+
+// this test case passed, to check it pass you must lower the expiration date for the token!
+// t['refreshLoop: test the refresh loop of a token'] = async () => {
+//   cache.clear()
+//   const client = await createClient({ domain, access_token })
+// }
