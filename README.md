@@ -61,6 +61,7 @@ This package contains the following exported functions:
 - `singOut`
 - `getToken`
 - `decode`
+- `exportAsCsv`
 
 ### `createClient`
 
@@ -152,7 +153,7 @@ before signOut: undefined
 
 ### `getToken`
 
-This allows users to generate a new token without the client being initialized.
+This allows application to generate a new token without the client being initialized.
 
 example:
 
@@ -177,5 +178,34 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2IiwiaWF0IjoxNjI4Nzg4OTk1LCJpcCI
     'x-hasura-token-id': '53970dd-2b36-491b-800-94ae1105477'
   }
 }
+```
 
+---
+
+### `exportAsCsv`
+
+This allows the application to convert the result form the query to a csv format.
+
+example:
+
+```js
+const domain = 'dev.01-edu.org'
+const access_token = '427faa391a0d73a68b69d4d3b65796fd798e9156'
+
+const client = await createClient({
+  domain,
+  access_token,
+})
+
+client.run('query {user{id, login}}').then((data)=> console.log(exportAsCsv(data)))
+```
+
+output:
+
+```console
+id,login
+1,01-edu
+6,Joao
+7,Someone
+8,Lee
 ```
