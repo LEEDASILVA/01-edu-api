@@ -60,11 +60,11 @@ This package contains the following exported functions:
 
 This function allows the application to init a client. This client will :
 
-- generate a new **read only token** saving it in cache (global state)
+- generate a new **read only token** saving it in storage (global state)
 - initialize a refresh loop, where it will refresh the **read only token** whenever the token expires.
 
-Returns the `cache` and a function `run`.\
-The `run` function allows the application to query the database. The `cache` contains a set of functions that allows the application to access the local storage (where the token is saved)
+Returns the `storage` and a function `run`.\
+The `run` function allows the application to query the database. The `storage` contains a set of functions that allows the application to access the local storage (where the token is saved)
 
 example:
 
@@ -79,7 +79,7 @@ const client = await createClient({
 })
 
 client.run('query {user{id, login}}').then(console.log)
-console.log(client.cache.get('hasura-jwt-token'))
+console.log(client.storage.get('hasura-jwt-token'))
 ```
 
 output:

@@ -1,46 +1,48 @@
 import { deepStrictEqual as eq, rejects } from 'assert'
-import got from 'got'
+import https from 'https'
 import FormData from 'form-data'
-import {
-  exportAsCsv,
-  getToken,
-  decode,
-  signOut,
-  cache,
-  createClient,
-} from './index.js'
+import { requestToken, decode, createClient } from './index.js'
 
 export const t = {}
 const domain = 'dev.01-edu.org'
 const bad_access_token = '427faa391a0d73a68b69d4d3b65796fd798e9156'
 const user = 'lee'
 const pass = 'qwertY1234'
-let access_token
+let access_token = ''
 
-t['access_token: create access_token for user'] = async () => {
-  const body = new FormData()
-  body.append('name', 'access_token')
-  try {
-    const res = await got.post(
-      `https://${user}:${pass}@git.dev.01-edu.org/api/v1/users/${user}/tokens`,
+t['access_token: create access_token for user'] = () => {
+  const data = JSON.stringify({ name: 'access_token' })
+  return new Promise((resolve, reject) => {
+    const req = https.request(
       {
-        responseType: 'json',
-        https: { rejectUnauthorized: false },
-        body,
+        hostname: 'git.dev.01-edu.org',
+        path: `/api/v1/users/${user}/tokens`,
+        // auth:
+        method: 'POST',
+        rejectUnauthorized: false,
+        headers: {
+          Authorization:
+            'Basic ' + Buffer.from(user + ':' + pass).toString('base64'),
+          'Content-Type': 'application/json',
+          'Content-Length': data.length,
+        },
+      },
+      (res) => {
+        res.on('data', (d) => {
+          access_token = JSON.parse(d.toString()).sha1
+          resolve()
+        })
       }
     )
-    access_token = res.body.sha1
-  } catch {
-    const res = await got(
-      `https://${user}:${pass}@git.dev.01-edu.org/api/v1/users/${user}/tokens`,
-      {
-        responseType: 'json',
-        https: { rejectUnauthorized: false },
-      }
-    )
-    access_token = res.body.sha1
-  }
+    req.on('error', (error) => {
+      reject(error)
+    })
+    // Write data to request body
+    req.write(data)
+    req.end()
+  })
 }
+
 t['decode: test the decoding of a token'] = () =>
   eq(
     decode(
@@ -80,15 +82,18 @@ t['decode: test the decoding of a token 2'] = () =>
     }
   )
 
-t['getToken: test invalid access token (app token)'] = () =>
-  rejects(() => getToken({ domain, access_token: bad_access_token }), {
-    message: 'Response code 401 (Unauthorized)',
-    name: 'HTTPError',
+t['requestToken: test invalid access token (app token)'] = () =>
+  rejects(() => requestToken({ domain, access_token: bad_access_token }), {
+    message: 'Unauthorized',
+    name: 'Error',
   })
 
-t['getToken: test valid access token (app token)'] = async () => {
+t['requestToken: test valid access token (app token)'] = async () => {
   const CLAIMS = 'https://hasura.io/jwt/claims'
-  const { payload } = await getToken({ domain, access_token })
+  const { payload } = await requestToken({
+    domain,
+    access_token,
+  })
   return eq(
     {
       allowedRoles: payload[CLAIMS]['x-hasura-allowed-roles'],
@@ -98,32 +103,22 @@ t['getToken: test valid access token (app token)'] = async () => {
     {
       allowedRoles: ['user', 'admin_read_only'],
       defaultRole: 'admin_read_only',
-      userId: '6',
+      userId: '4852',
     }
   )
 }
 
-t['createClient: create new client with bad token'] = () => {
-  return rejects(
-    () => createClient({ domain, access_token: bad_access_token }),
-    {
-      message: 'Response code 401 (Unauthorized)',
-      name: 'HTTPError',
-    }
-  )
-}
+// TODO : fix this
+// t['createClient: create new client'] = async () => {
+//   const result = await createClient({
+//     domain,
+//     access_token,
+//   })
 
-t['createClient: create new client'] = async () => {
-  const result = await createClient({
-    domain,
-    access_token,
-  })
-
-  return eq(result.cache, cache)
-}
+//   return eq(result.storage, new Map())
+// }
 
 t['client.run: run queries'] = async () => {
-  cache.clear()
   const client = await createClient({
     domain,
     access_token,
@@ -137,22 +132,7 @@ t['client.run: run queries'] = async () => {
   return eq(users[0], { id: 1, login: '01-edu' })
 }
 
-t['client.run: with no token (after signOut)'] = async () => {
-  cache.clear()
-  const client = await createClient({
-    domain,
-    access_token,
-  })
-
-  signOut(domain)
-  return rejects(() => client.run('query {user{id, login}}'), {
-    message:
-      'Could not verify JWT: JWSError (CompactDecodeError Invalid number of parts: Expected 3 parts; got 1)',
-  })
-}
-
 t['client.run: run mutation (not allowed)'] = async () => {
-  cache.clear()
   const client = await createClient({
     domain,
     access_token,
@@ -170,38 +150,49 @@ t['client.run: run mutation (not allowed)'] = async () => {
   )
 }
 
-t['signOut: expire the token (if app needs to expire the token)'] =
-  async () => {
-    await getToken({ domain, access_token })
-    return eq(await signOut(domain), { message: 'ok' })
-  }
-
-t['signOut: expire token that does not exist'] = () => {
-  cache.clear()
-  return rejects(() => signOut(domain), {
-    name: 'HTTPError',
-    message: 'Response code 401 (Unauthorized)',
-  })
-}
-
-t['exportAsCsv: format data to csv export (using simple query)'] = async () => {
-  cache.clear()
+let _timeOut
+// not sure if applications need to do such a thing!! execute multiple runs at the same time
+// this will create conflicts between runs, if the token expires then the other
+// runs will try to refresh an already expired token !! this will return an error (Unauthorize)!
+t[
+  'client.run: multiple runs, until the token expires (recommended: change the time of the token)'
+] = async () => {
   const client = await createClient({
     domain,
     access_token,
   })
-  const users = (
-    await client.run(
-      'query($userName: String!) {user(where:{login:{_eq: $userName}}){id, login}}',
-      { userName: '01-edu' }
-    )
-  ).user
-  signOut(domain)
-  eq(exportAsCsv(users), 'id,login\n1,01-edu\n')
+  const oldToken = client.storage.get('hasura-jwt-token')
+  const runMultiple = (client, print) => {
+    _timeOut = setTimeout(() => {
+      Promise.all([
+        client.run('query{user{id,login}}'),
+        client.run('query{user{id,login}}'),
+        client.run('query{user{id,login}}'),
+        client.run('query{token{id,status}}'),
+        client.run('query{token{id,status}}'),
+        client.run('query{token{id,status}}'),
+        client.run(
+          'query($userName: String!) {user(where:{login:{_eq: $userName}}){id, login}}',
+          { userName: '01-edu' }
+        ),
+        client.run(
+          'query($userName: String!) {user(where:{login:{_eq: $userName}}){id, login}}',
+          { userName: '01-edu' }
+        ),
+        client.run(
+          'query($userName: String!) {user(where:{login:{_eq: $userName}}){id, login}}',
+          { userName: '01-edu' }
+        ),
+      ])
+      print && process.stdout.write('running multiple queries')
+      process.stdout.write('.')
+      clearTimeout(_timeOut)
+      if (oldToken != client.storage.get('hasura-jwt-token')) {
+        console.log(oldToken)
+        console.log(client.storage.get('hasura-jwt-token'))
+      }
+      runMultiple(client, false)
+    }, 250)
+  }
+  runMultiple(client, true)
 }
-
-// this test case passed, to check it pass you must lower the expiration date for the token!
-// t['refreshLoop: test the refresh loop of a token'] = async () => {
-//   cache.clear()
-//   const client = await createClient({ domain, access_token })
-// }
