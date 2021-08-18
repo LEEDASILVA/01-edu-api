@@ -19,7 +19,6 @@
   "homepage": "https://github.com/LEEDASILVA/01-edu-api#readme",
   "dependencies": {
     "form-data": "^4.0.0",
-    "got": "^11.8.2",
-    "node-fetch": "^2.6.1"
+    "https": "^1.0.0"
   }
 }

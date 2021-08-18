@@ -14,8 +14,7 @@ $ npm i @01-edu/api
 
 This package allows users to create a read only access to the schools database (keep in mind that this access will only be provided for admins).
 
-<details>
-<summary><b>How to get an access token from gitea?</b></summary>
+- How to get an access token from gitea?
 
 To get an access token from gitea, you must go to **user/settings/application** then **Generate New Token** (https://DOMAIN/user/settings/applications).
 
@@ -39,17 +38,13 @@ output
 {"id":4,"name":"access_token","sha1":"592cfb612d027eeb45359d837a93b4e22b5e1","token_last_eight":"e22bb5e1"}
 ```
 
-</details>
+- What can you query?
 
-<details>
-<summary><b>What can you query?</b></summary>
-Querying information is depended on the users role. You can see all possible tables that this role can query <a>https://public.01-edu.org/docs/db/db-authorization</a>
-</details>
+Querying information is depended on the users role. You can see all possible tables that this role can query [here](https://public.01-edu.org/docs/db/db-authorization)
 
-<details>
-<summary><b>How to query the information? Where to find examples?</b></summary>
-You can take a look into the documentation <a>https://public.01-edu.org/docs/db/graphql</a>.
-</details>
+- How to query the information? Where to find examples?
+
+You can take a look into the documentation [here](https://public.01-edu.org/docs/db/graphql).
 
 ---
 
@@ -58,10 +53,8 @@ You can take a look into the documentation <a>https://public.01-edu.org/docs/db/
 This package contains the following exported functions:
 
 - `createClient`
-- `singOut`
-- `getToken`
+- `requestToken`
 - `decode`
-- `exportAsCsv`
 
 ### `createClient`
 
@@ -105,60 +98,14 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2IiwiaWF0IjoxN1MzY2LCJpcCI6IjE3M
 
 ---
 
-### `signOut`
-
-This function allows the application to expire the current **read only token**, and ends the refresh loop
-
-example:
-
-```js
-const domain = 'dev.01-edu.org'
-const access_token = '427faa391a0d73a68b69d4d3b65796fd798e9156'
-
-const client = await createClient({
-  domain,
-  access_token,
-})
-
-client.run('query {user{id, login}}').then(console.log)
-
-console.log('before signOut: ', client.cache.get('hasura-jwt-token'))
-signOut(domain)
-console.log('after signOut: ', client.cache.get('hasura-jwt-token'))
-console.log('-----')
-console.log(await client.run('query {user{id, login}}')))
-
-```
-
-output:
-
-```js
-{
-  user: [
-    { id: 1, login: '01-edu' },
-    { id: 6, login: 'Joao' }
-    { id: 7, login: 'Someone' },
-    { id: 8, login: 'Lee' },
-  ]
-}
-before signOut: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2IiwiaWF0IjoxN1MzY2LCJpcCI6IjE3Mi4xOC4wLjEsIDE3Mi4xOC4wLjMiLCJleHAiOjE2MjkpbXMiOnsieC1oYXN1cmEtYWxsb3dlZC1yb2xlcyI6WyJ1c2VyIiwiYWRtaW5fcmVhZF9vbmx5Il0sI1kWx0LXJvbGUiOiJhZG1pbl9yZWFkX29ubHkiLCJ4LWhhc3VyYS11c2VyLWlkIjoiNiIsIngtaGFzdXJhLXRva2VuLWlkIjoiZjgzZmM2YTItZWFhNC00NDVmLTgyNmYtYTg1NTgzZjA1NWY3In19.HObIGivW31TOqFNlzu6VY7ACuTC5x0numm6-hOKp0
-before signOut: undefined
------
-  {
-    message: 'Could not verify JWT: JWSError (CompactDecodeError Invalid number of parts: Expected 3 parts; got 1)'
-  }
-```
-
----
-
-### `getToken`
+### `requestToken`
 
 This allows application to generate a new token without the client being initialized.
 
 example:
 
 ```js
-getToken({ domain, access_token }).then(console.log)
+requestToken({ domain, access_token }).then(console.log)
 ```
 
 output:
@@ -178,34 +125,4 @@ eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2IiwiaWF0IjoxNjI4Nzg4OTk1LCJpcCI
     'x-hasura-token-id': '53970dd-2b36-491b-800-94ae1105477'
   }
 }
-```
-
----
-
-### `exportAsCsv`
-
-This allows the application to convert the result form the query to a csv format.
-
-example:
-
-```js
-const domain = 'dev.01-edu.org'
-const access_token = '427faa391a0d73a68b69d4d3b65796fd798e9156'
-
-const client = await createClient({
-  domain,
-  access_token,
-})
-
-client.run('query {user{id, login}}').then((data)=> console.log(exportAsCsv(data)))
-```
-
-output:
-
-```console
-id,login
-1,01-edu
-6,Joao
-7,Someone
-8,Lee
 ```
