@@ -2,12 +2,12 @@ import https from 'https'
 
 const storage = new Map()
 
-const base64urlUnescape = (str) =>
+const base64urlUnescape = str =>
   (str.length % 4 ? `${str}${'='.repeat(4 - (str.length % 4))}` : str)
     .replace(/-/g, '+')
     .replace(/_/g, '/')
 
-const decode = (token) =>
+const decode = token =>
   JSON.parse(Buffer.from(base64urlUnescape(token.split('.')[1]), 'base64'))
 
 const fetch = (domain, path, headers, data) =>
@@ -20,23 +20,21 @@ const fetch = (domain, path, headers, data) =>
         headers,
         rejectUnauthorized: false,
       },
-      (res) => {
-        if (res.statusCode != 200) {
-          reject(new Error(res.statusMessage))
+      async res => {
+        if (res.statusCode !== 200) return reject(Error(res.statusMessage))
+        try {
+          const body = []
+          for await (const chunk of res) {
+            body.push(chunk)
+          }
+          resolve(JSON.parse(Buffer.concat(body).toString()))
+        } catch (err) {
+          reject(err)
         }
-        let body = []
-        res.on('data', (chunk) => {
-          body.push(chunk)
-        })
-        // resolve on end
-        res.on('end', () => {
-          body = JSON.parse(Buffer.concat(body).toString())
-          resolve(body)
-        })
-      }
+      },
     )
     // reject on request error
-    req.on('error', (err) => {
+    req.on('error', err => {
       reject(err)
     })
     if (data) {
@@ -54,7 +52,7 @@ const requestToken = async ({ domain, access_token }) => {
   return { token, payload }
 }
 
-const isExpired = (payload) => {
+const isExpired = payload => {
   const diff = payload.exp - Date.now() / 1000
   // check if the token exists in the storage
   // if so, check if the token is still valid
@@ -99,7 +97,7 @@ const createClient = async ({ domain, access_token }) => {
           'Content-Type': 'application/json',
           'Content-Length': form.length,
         },
-        form
+        form,
       )
       const { errors, data } = body
       if (errors) {
