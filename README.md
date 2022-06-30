@@ -29,7 +29,7 @@ To get an access token from gitea, you must go to **user/settings/application** 
 Or you can use `curl` and send a request to gitea:
 
 ```sh
-$ curl -X 'POST' 'https://someone:123456@git.dev.01-edu.org/api/v1/users/someone/tokens' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"name": "access_token"}'
+$ curl -X 'POST' 'https://someone:123456@dev.01-edu.org/git/api/v1/users/someone/tokens' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"name": "access_token"}'
 ```
 
 output
